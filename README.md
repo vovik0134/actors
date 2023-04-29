@@ -1,3 +1,5 @@
-## Actors
+## Triggerable
 
-Example of periodic and event triggered actors working together
+Simple library to run your functions when some event occurred
+
+See `examples` for more details
