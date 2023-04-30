@@ -5,16 +5,13 @@ import (
 	"time"
 )
 
-type TriggerFunc func(ctx context.Context)
-type NotifyFunc func(ctx context.Context, triggerFunc TriggerFunc)
-
-type RunFunc func(ctx context.Context) error
-
-type Action struct {
-	Run               RunFunc
-	RetryAfterTimeout time.Duration
+type action interface {
+	Name() string
+	Run(ctx context.Context) error
+	RetryAfterTimeout() time.Duration
 }
 
-type Notifiable interface {
-	NotifyWhenTriggered(chan<- *Action)
+type logger interface {
+	Debug(ctx context.Context, args ...any)
+	Info(ctx context.Context, args ...any)
 }

@@ -2,14 +2,15 @@ package triggerable
 
 import (
 	"context"
-	"time"
+	"fmt"
 )
 
-const NoRetryTimeout = -1 * time.Second
-
-func (p *Triggerable) NotifyWhenTriggered(actions chan<- *Action) {
+func (p *triggerableImpl) EnqueueActionWhenTriggered(actions chan<- action) {
 	triggered := make(chan struct{}, 1)
+
 	triggerFunc := func(ctx context.Context) {
+		p.logger.Debug(ctx, fmt.Sprintf("action %q triggered", p.action.Name()))
+
 		select {
 		case <-ctx.Done():
 		case triggered <- struct{}{}:
@@ -18,58 +19,35 @@ func (p *Triggerable) NotifyWhenTriggered(actions chan<- *Action) {
 
 	go p.notifyFunc(p.ctx, triggerFunc)
 
-	action := &Action{Run: p.runFunc, RetryAfterTimeout: p.retryAfterTimeout}
-
 	go func() {
 		for {
 			select {
 			case <-p.ctx.Done():
 				return
 			case <-triggered:
-				actions <- action
+				actions <- p.action
 			}
 		}
 	}()
 }
 
-func New(ctx context.Context, opts ...Option) *Triggerable {
-	p := &Triggerable{
-		ctx:               ctx,
-		runFunc:           func(ctx context.Context) error { return nil },
-		notifyFunc:        func(context.Context, TriggerFunc) {},
-		retryAfterTimeout: NoRetryTimeout,
-	}
-
-	for _, o := range opts {
-		o(p)
-	}
-
-	return p
-}
-
-func WithRunFunc(runFunc RunFunc) Option {
-	return func(p *Triggerable) {
-		p.runFunc = runFunc
+func New(
+	ctx context.Context,
+	logger logger,
+	action action,
+	notifyFunc func(ctx context.Context, triggerFunc func(context.Context)),
+) *triggerableImpl {
+	return &triggerableImpl{
+		ctx:        ctx,
+		logger:     logger,
+		action:     action,
+		notifyFunc: notifyFunc,
 	}
 }
 
-func WithNotifyFunc(notifyFunc NotifyFunc) Option {
-	return func(p *Triggerable) {
-		p.notifyFunc = notifyFunc
-	}
-}
-
-func WithRetryAfterTimeout(retryAfterTimeout time.Duration) Option {
-	return func(p *Triggerable) {
-		p.retryAfterTimeout = retryAfterTimeout
-	}
-}
-
-type Option func(p *Triggerable)
-
-type Triggerable struct {
-	ctx               context.Context
-	runFunc           RunFunc
-	notifyFunc        NotifyFunc
-	retryAfterTimeout time.Duration
+type triggerableImpl struct {
+	ctx        context.Context
+	logger     logger
+	action     action
+	notifyFunc func(ctx context.Context, triggerFunc func(context.Context))
 }

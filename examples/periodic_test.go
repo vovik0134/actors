@@ -12,6 +12,8 @@ func TestPeriodic(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
+	logger := &Logger{}
+
 	interval := 100 * time.Millisecond
 	expectedCalls := 5
 	actualCalls := 0
@@ -26,7 +28,7 @@ func TestPeriodic(t *testing.T) {
 		return nil
 	}
 
-	notifyFunc := func(ctx context.Context, triggerFunc triggerable.TriggerFunc) {
+	notifyFunc := func(ctx context.Context, triggerFunc func(ctx context.Context)) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -37,13 +39,10 @@ func TestPeriodic(t *testing.T) {
 		}
 	}
 
-	periodic := triggerable.New(
-		ctx,
-		triggerable.WithRunFunc(runFunc),
-		triggerable.WithNotifyFunc(notifyFunc),
-	)
+	action := triggerable.Action(runFunc, triggerable.WithName("periodic"))
+	periodic := triggerable.New(ctx, logger, action, notifyFunc)
 
-	loop := triggerable.Loop(periodic)
+	loop := triggerable.Loop(logger, periodic)
 
 	startedAt := time.Now()
 	if err := loop.Run(ctx); err != nil {

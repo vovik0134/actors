@@ -10,6 +10,8 @@ func TestEventTriggered(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
+	logger := &Logger{}
+
 	eventsN := 5
 	events := make(chan struct{}, 1)
 
@@ -37,7 +39,7 @@ func TestEventTriggered(t *testing.T) {
 		return nil
 	}
 
-	notifyFunc := func(ctx context.Context, triggerFunc triggerable.TriggerFunc) {
+	notifyFunc := func(ctx context.Context, triggerFunc func(ctx2 context.Context)) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -48,13 +50,10 @@ func TestEventTriggered(t *testing.T) {
 		}
 	}
 
-	eventTriggered := triggerable.New(
-		ctx,
-		triggerable.WithRunFunc(runFunc),
-		triggerable.WithNotifyFunc(notifyFunc),
-	)
+	action := triggerable.Action(runFunc, triggerable.WithName("event triggered counter"))
+	eventTriggered := triggerable.New(ctx, logger, action, notifyFunc)
 
-	loop := triggerable.Loop(eventTriggered)
+	loop := triggerable.Loop(logger, eventTriggered)
 
 	if err := loop.Run(ctx); err != nil {
 		t.Fatalf("loop failed with unexpected error: %s", err)

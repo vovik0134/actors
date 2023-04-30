@@ -12,6 +12,8 @@ func TestRetry(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
+	logger := &Logger{}
+
 	expectedCalls := 5
 	actualCalls := 0
 
@@ -25,19 +27,15 @@ func TestRetry(t *testing.T) {
 		return fmt.Errorf("test error")
 	}
 
-	notifyFunc := func(ctx context.Context, triggerFunc triggerable.TriggerFunc) {
+	notifyFunc := func(ctx context.Context, triggerFunc func(ctx context.Context)) {
 		// triggers only once
 		triggerFunc(ctx)
 	}
 
-	retryable := triggerable.New(
-		ctx,
-		triggerable.WithRunFunc(runFunc),
-		triggerable.WithNotifyFunc(notifyFunc),
-		triggerable.WithRetryAfterTimeout(100*time.Millisecond),
-	)
+	action := triggerable.Action(runFunc, triggerable.WithName("retryable"), triggerable.WithRetryAfterTimeout(100*time.Millisecond))
+	retryable := triggerable.New(ctx, logger, action, notifyFunc)
 
-	loop := triggerable.Loop(retryable)
+	loop := triggerable.Loop(logger, retryable)
 
 	if err := loop.Run(ctx); err != nil {
 		t.Fatalf("loop failed with unexpected error: %s", err)
