@@ -2,10 +2,7 @@ package triggerable
 
 import (
 	"context"
-	"time"
 )
-
-const NoRetryTimeout = -1 * time.Second
 
 func (a *actionImpl) Run(ctx context.Context) error {
 	return a.runFunc(ctx)
@@ -15,15 +12,15 @@ func (a *actionImpl) Name() string {
 	return a.name
 }
 
-func (a *actionImpl) RetryAfterTimeout() time.Duration {
-	return a.retryAfterTimeout
+func (a *actionImpl) RetryOnError(ctx context.Context, err error) bool {
+	return a.retryOnError(ctx, err)
 }
 
 func Action(runFunc func(ctx context.Context) error, opts ...actionOption) *actionImpl {
 	a := &actionImpl{
-		runFunc:           runFunc,
-		name:              "unnamed",
-		retryAfterTimeout: NoRetryTimeout,
+		runFunc:      runFunc,
+		name:         "unnamed",
+		retryOnError: func(ctx context.Context, err error) bool { return false },
 	}
 
 	for _, o := range opts {
@@ -39,22 +36,22 @@ func WithName(name string) actionOption {
 	}
 }
 
-func WithRetryAfterTimeout(retryAfterTimeout time.Duration) actionOption {
+func WithRetryOnError(retryOnError func(ctx context.Context, err error) bool) actionOption {
 	return func(a *actionImpl) {
-		a.retryAfterTimeout = retryAfterTimeout
+		a.retryOnError = retryOnError
 	}
 }
 
 type actionOption func(a *actionImpl)
 
 type actionImpl struct {
-	runFunc           func(ctx context.Context) error
-	name              string
-	retryAfterTimeout time.Duration
+	runFunc      func(ctx context.Context) error
+	name         string
+	retryOnError func(ctx context.Context, err error) bool
 }
 
 type action interface {
 	Name() string
 	Run(ctx context.Context) error
-	RetryAfterTimeout() time.Duration
+	RetryOnError(ctx context.Context, err error) bool
 }

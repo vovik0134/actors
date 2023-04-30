@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 )
 
 func (l *loopImpl) Run(ctx context.Context) error {
@@ -39,26 +38,21 @@ func (l *loopImpl) listen(ctx context.Context, actions chan action) {
 			return
 		case a := <-actions:
 			l.logger.Debug(ctx, fmt.Sprintf("running action %q", a.Name()))
+
 			if err := a.Run(ctx); err != nil {
 				l.logger.Info(ctx, fmt.Sprintf("action %q failed with error: %s", a.Name(), err))
-				if a.RetryAfterTimeout() != NoRetryTimeout {
-					l.scheduleRetry(ctx, actions, a)
-				}
+
+				// retry function can contain time.Sleep call,
+				// so we running it in separate goroutine
+				go func() {
+					if a.RetryOnError(ctx, err) {
+						select {
+						case <-ctx.Done():
+						case actions <- a:
+						}
+					}
+				}()
 			}
 		}
 	}
-}
-
-func (l *loopImpl) scheduleRetry(ctx context.Context, actions chan action, action action) {
-	l.logger.Info(ctx, fmt.Sprintf("scheduling retry for action %q in %s", action.Name(), action.RetryAfterTimeout().String()))
-
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-time.After(action.RetryAfterTimeout()):
-			select {
-			case actions <- action:
-			}
-		}
-	}()
 }

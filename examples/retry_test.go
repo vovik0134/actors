@@ -14,17 +14,10 @@ func TestRetry(t *testing.T) {
 
 	logger := &Logger{}
 
-	expectedCalls := 5
-	actualCalls := 0
+	testErr := fmt.Errorf("test error")
 
 	runFunc := func(ctx context.Context) error {
-		if actualCalls == expectedCalls {
-			cancelFunc()
-			return nil
-		}
-		actualCalls++
-
-		return fmt.Errorf("test error")
+		return testErr
 	}
 
 	eventFunc := func(ctx context.Context, trigger func(context.Context)) {
@@ -32,7 +25,25 @@ func TestRetry(t *testing.T) {
 		trigger(ctx)
 	}
 
-	action := triggerable.Action(runFunc, triggerable.WithName("retryable"), triggerable.WithRetryAfterTimeout(100*time.Millisecond))
+	expectedRetries := 5
+	actualRetries := 0
+
+	retryOnErrorFunc := func(ctx context.Context, err error) bool {
+		if err != testErr {
+			return false
+		}
+
+		if actualRetries == expectedRetries {
+			cancelFunc()
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+		actualRetries++
+
+		return true
+	}
+
+	action := triggerable.Action(runFunc, triggerable.WithName("retryable"), triggerable.WithRetryOnError(retryOnErrorFunc))
 	retryableTrigger := triggerable.Trigger(ctx, action, eventFunc)
 
 	loop := triggerable.Loop(logger, retryableTrigger)
@@ -41,7 +52,7 @@ func TestRetry(t *testing.T) {
 		t.Fatalf("loop failed with unexpected error: %s", err)
 	}
 
-	if expectedCalls != actualCalls {
-		t.Fatalf("expected %d calls, but called %d times", expectedCalls, actualCalls)
+	if expectedRetries != actualRetries {
+		t.Fatalf("expected %d calls, but called %d times", expectedRetries, actualRetries)
 	}
 }
