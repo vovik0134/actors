@@ -39,19 +39,19 @@ func TestEventTriggered(t *testing.T) {
 		return nil
 	}
 
-	eventFunc := func(ctx context.Context, trigger func(context.Context)) {
+	event := triggerable.Event(func(ctx context.Context, fire func()) {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-events:
-				trigger(ctx)
+				fire()
 			}
 		}
-	}
+	})
 
 	action := triggerable.Action(runFunc, triggerable.WithName("event"))
-	eventTrigger := triggerable.Trigger(ctx, action, eventFunc)
+	eventTrigger := triggerable.Trigger(action, event)
 
 	loop := triggerable.Loop(logger, eventTrigger)
 

@@ -4,37 +4,35 @@ import (
 	"context"
 )
 
-func (p *triggerImpl) Triggered() chan action {
+func (p *triggerImpl) Triggered(ctx context.Context) chan action {
 	actions := make(chan action)
+	fired := p.event.Fired(ctx)
 
-	go p.eventFunc(p.ctx, func(ctx context.Context) {
-		select {
-		case <-ctx.Done():
-		case actions <- p.action:
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-fired:
+				select {
+				case actions <- p.action:
+				}
+			}
 		}
-	})
+	}()
 
 	return actions
 }
 
-func Trigger(
-	ctx context.Context,
-	action action,
-	eventFunc func(ctx context.Context, trigger func(context.Context)),
-) *triggerImpl {
-	return &triggerImpl{
-		ctx:       ctx,
-		action:    action,
-		eventFunc: eventFunc,
-	}
+func Trigger(action action, event event) *triggerImpl {
+	return &triggerImpl{action: action, event: event}
 }
 
 type triggerImpl struct {
-	ctx       context.Context
-	action    action
-	eventFunc func(ctx context.Context, trigger func(context.Context))
+	action action
+	event  event
 }
 
 type trigger interface {
-	Triggered() chan action
+	Triggered(ctx context.Context) chan action
 }

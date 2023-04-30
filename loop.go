@@ -7,18 +7,24 @@ import (
 )
 
 func (l *loopImpl) Run(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	wg := &sync.WaitGroup{}
 	wg.Add(len(l.triggerable))
+	var err error
 
 	for _, t := range l.triggerable {
 		go func(t trigger) {
-			l.listen(ctx, t.Triggered())
+			if err = l.listen(ctx, t.Triggered(ctx)); err != nil {
+				cancel()
+			}
 			wg.Done()
 		}(t)
 	}
 
 	wg.Wait()
-	return nil
+	return err
 }
 
 func Loop(logger logger, triggerable ...trigger) *loopImpl {
@@ -30,26 +36,36 @@ type loopImpl struct {
 	triggerable []trigger
 }
 
-func (l *loopImpl) listen(ctx context.Context, actions chan action) {
+func (l *loopImpl) listen(ctx context.Context, actions chan action) error {
 	for {
 		select {
 		case <-ctx.Done():
 			l.logger.Info(ctx, fmt.Sprintf("loop stopped"))
-			return
+			return nil
 		case a := <-actions:
 			l.logger.Debug(ctx, fmt.Sprintf("running action %q", a.Name()))
 
 			if err := a.Run(ctx); err != nil {
 				l.logger.Info(ctx, fmt.Sprintf("action %q failed with error: %s", a.Name(), err))
+				retry, retryFunc := a.RetryOnError(err)
+				if !retry {
+					return err
+				}
 
-				// retry function can contain time.Sleep call,
+				l.logger.Info(ctx, fmt.Sprintf("retrying action %q", a.Name()))
+
+				// retry function can contain time.Sleep call
+				// or something blocking,
 				// so we running it in separate goroutine
 				go func() {
-					if a.RetryOnError(ctx, err) {
-						select {
-						case <-ctx.Done():
-						case actions <- a:
-						}
+					if retryFunc != nil {
+						retryFunc(ctx)
+					}
+
+					select {
+					case <-ctx.Done():
+						return
+					case actions <- a:
 					}
 				}()
 			}

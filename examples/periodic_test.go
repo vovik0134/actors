@@ -28,19 +28,19 @@ func TestPeriodic(t *testing.T) {
 		return nil
 	}
 
-	eventFunc := func(ctx context.Context, trigger func(ctx context.Context)) {
+	event := triggerable.Event(func(ctx context.Context, fire func()) {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(interval):
-				trigger(ctx)
+				fire()
 			}
 		}
-	}
+	})
 
 	action := triggerable.Action(runFunc, triggerable.WithName("periodic"))
-	periodicTrigger := triggerable.Trigger(ctx, action, eventFunc)
+	periodicTrigger := triggerable.Trigger(action, event)
 
 	loop := triggerable.Loop(logger, periodicTrigger)
 

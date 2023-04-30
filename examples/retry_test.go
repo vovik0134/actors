@@ -20,35 +20,35 @@ func TestRetry(t *testing.T) {
 		return testErr
 	}
 
-	eventFunc := func(ctx context.Context, trigger func(context.Context)) {
+	event := triggerable.Event(func(ctx context.Context, fire func()) {
 		// triggers only once
-		trigger(ctx)
-	}
+		fire()
+	})
 
 	expectedRetries := 5
 	actualRetries := 0
 
-	retryOnErrorFunc := func(ctx context.Context, err error) bool {
+	retryOnErrorFunc := func(err error) (bool, func(context.Context)) {
 		if err != testErr {
-			return false
+			return false, nil
 		}
 
 		if actualRetries == expectedRetries {
-			cancelFunc()
-			return false
+			return false, nil
 		}
-		time.Sleep(100 * time.Millisecond)
-		actualRetries++
 
-		return true
+		return true, func(ctx context.Context) {
+			time.Sleep(100 * time.Millisecond)
+			actualRetries++
+		}
 	}
 
 	action := triggerable.Action(runFunc, triggerable.WithName("retryable"), triggerable.WithRetryOnError(retryOnErrorFunc))
-	retryableTrigger := triggerable.Trigger(ctx, action, eventFunc)
+	retryableTrigger := triggerable.Trigger(action, event)
 
 	loop := triggerable.Loop(logger, retryableTrigger)
 
-	if err := loop.Run(ctx); err != nil {
+	if err := loop.Run(ctx); err != testErr {
 		t.Fatalf("loop failed with unexpected error: %s", err)
 	}
 
