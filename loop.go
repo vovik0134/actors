@@ -3,20 +3,40 @@ package triggerable
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
 func (l *loopImpl) Run(ctx context.Context) error {
-	actions := make(chan action, len(l.triggerable))
-	for _, n := range l.triggerable {
-		n.EnqueueActionWhenTriggered(actions)
+	wg := &sync.WaitGroup{}
+	wg.Add(len(l.triggerable))
+
+	for _, t := range l.triggerable {
+		go func(t trigger) {
+			l.listen(ctx, t.Triggered())
+			wg.Done()
+		}(t)
 	}
 
+	wg.Wait()
+	return nil
+}
+
+func Loop(logger logger, triggerable ...trigger) *loopImpl {
+	return &loopImpl{logger: logger, triggerable: triggerable}
+}
+
+type loopImpl struct {
+	logger      logger
+	triggerable []trigger
+}
+
+func (l *loopImpl) listen(ctx context.Context, actions chan action) {
 	for {
 		select {
 		case <-ctx.Done():
 			l.logger.Info(ctx, fmt.Sprintf("loop stopped"))
-			return nil
+			return
 		case a := <-actions:
 			l.logger.Debug(ctx, fmt.Sprintf("running action %q", a.Name()))
 			if err := a.Run(ctx); err != nil {
@@ -29,27 +49,16 @@ func (l *loopImpl) Run(ctx context.Context) error {
 	}
 }
 
-func Loop(logger logger, triggerable ...triggerable) *loopImpl {
-	return &loopImpl{logger: logger, triggerable: triggerable}
-}
-
-type loopImpl struct {
-	logger      logger
-	triggerable []triggerable
-}
-
-func (l *loopImpl) scheduleRetry(ctx context.Context, actions chan<- action, action action) {
+func (l *loopImpl) scheduleRetry(ctx context.Context, actions chan action, action action) {
 	l.logger.Info(ctx, fmt.Sprintf("scheduling retry for action %q in %s", action.Name(), action.RetryAfterTimeout().String()))
 
 	go func() {
 		select {
 		case <-ctx.Done():
 		case <-time.After(action.RetryAfterTimeout()):
-			actions <- action
+			select {
+			case actions <- action:
+			}
 		}
 	}()
-}
-
-type triggerable interface {
-	EnqueueActionWhenTriggered(chan<- action)
 }

@@ -39,21 +39,21 @@ func TestEventTriggered(t *testing.T) {
 		return nil
 	}
 
-	notifyFunc := func(ctx context.Context, triggerFunc func(ctx2 context.Context)) {
+	eventFunc := func(ctx context.Context, trigger func(context.Context)) {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-events:
-				triggerFunc(ctx)
+				trigger(ctx)
 			}
 		}
 	}
 
-	action := triggerable.Action(runFunc, triggerable.WithName("event triggered counter"))
-	eventTriggered := triggerable.New(ctx, logger, action, notifyFunc)
+	action := triggerable.Action(runFunc, triggerable.WithName("event"))
+	eventTrigger := triggerable.Trigger(ctx, action, eventFunc)
 
-	loop := triggerable.Loop(logger, eventTriggered)
+	loop := triggerable.Loop(logger, eventTrigger)
 
 	if err := loop.Run(ctx); err != nil {
 		t.Fatalf("loop failed with unexpected error: %s", err)

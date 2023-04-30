@@ -27,15 +27,15 @@ func TestRetry(t *testing.T) {
 		return fmt.Errorf("test error")
 	}
 
-	notifyFunc := func(ctx context.Context, triggerFunc func(ctx context.Context)) {
+	eventFunc := func(ctx context.Context, trigger func(context.Context)) {
 		// triggers only once
-		triggerFunc(ctx)
+		trigger(ctx)
 	}
 
 	action := triggerable.Action(runFunc, triggerable.WithName("retryable"), triggerable.WithRetryAfterTimeout(100*time.Millisecond))
-	retryable := triggerable.New(ctx, logger, action, notifyFunc)
+	retryableTrigger := triggerable.Trigger(ctx, action, eventFunc)
 
-	loop := triggerable.Loop(logger, retryable)
+	loop := triggerable.Loop(logger, retryableTrigger)
 
 	if err := loop.Run(ctx); err != nil {
 		t.Fatalf("loop failed with unexpected error: %s", err)

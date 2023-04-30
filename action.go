@@ -52,3 +52,9 @@ type actionImpl struct {
 	name              string
 	retryAfterTimeout time.Duration
 }
+
+type action interface {
+	Name() string
+	Run(ctx context.Context) error
+	RetryAfterTimeout() time.Duration
+}
