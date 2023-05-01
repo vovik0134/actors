@@ -40,7 +40,7 @@ func TestPeriodic(t *testing.T) {
 	})
 
 	action := triggerable.Action(runFunc, triggerable.WithName("periodic"))
-	periodicTrigger := triggerable.Trigger(action, event)
+	periodicTrigger := triggerable.Trigger(event, action)
 
 	loop := triggerable.Loop(logger, periodicTrigger)
 

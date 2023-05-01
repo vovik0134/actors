@@ -55,5 +55,5 @@ type actionImpl struct {
 type action interface {
 	Name() string
 	Run(ctx context.Context) error
-	RetryOnError(err error) (bool, func(ctx context.Context))
+	RetryOnError(err error) (retry bool, retryFunc func(ctx context.Context))
 }

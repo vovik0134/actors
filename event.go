@@ -4,6 +4,7 @@ import "context"
 
 func (e *eventImpl) Fired(ctx context.Context) <-chan struct{} {
 	fired := make(chan struct{})
+
 	go func() {
 		e.eventFunc(ctx, func() {
 			select {

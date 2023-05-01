@@ -44,7 +44,7 @@ func TestRetry(t *testing.T) {
 	}
 
 	action := triggerable.Action(runFunc, triggerable.WithName("retryable"), triggerable.WithRetryOnError(retryOnErrorFunc))
-	retryableTrigger := triggerable.Trigger(action, event)
+	retryableTrigger := triggerable.Trigger(event, action)
 
 	loop := triggerable.Loop(logger, retryableTrigger)
 

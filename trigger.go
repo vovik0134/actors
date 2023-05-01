@@ -5,8 +5,8 @@ import (
 )
 
 func (p *triggerImpl) Triggered(ctx context.Context) chan action {
-	actions := make(chan action)
 	fired := p.event.Fired(ctx)
+	actions := make(chan action)
 
 	go func() {
 		for {
@@ -24,13 +24,13 @@ func (p *triggerImpl) Triggered(ctx context.Context) chan action {
 	return actions
 }
 
-func Trigger(action action, event event) *triggerImpl {
-	return &triggerImpl{action: action, event: event}
+func Trigger(event event, action action) *triggerImpl {
+	return &triggerImpl{event: event, action: action}
 }
 
 type triggerImpl struct {
-	action action
 	event  event
+	action action
 }
 
 type trigger interface {

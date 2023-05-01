@@ -51,7 +51,7 @@ func TestEventTriggered(t *testing.T) {
 	})
 
 	action := triggerable.Action(runFunc, triggerable.WithName("event"))
-	eventTrigger := triggerable.Trigger(action, event)
+	eventTrigger := triggerable.Trigger(event, action)
 
 	loop := triggerable.Loop(logger, eventTrigger)
 
